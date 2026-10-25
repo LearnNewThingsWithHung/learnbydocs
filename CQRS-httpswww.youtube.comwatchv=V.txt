@@ -1,0 +1,237 @@
+CQRS | https://www.youtube.com/watch?v=VUcE_s0RoiY | https://www.youtube.com/watch?v=uFxfAgk0gBc
+Command Query Responsibility Segregation
+
+Comand: ghi -> thay đổi dữ liệu
+Query: đọc -> lấy dữ liệu
+Seperation: tách biệt
+
+=> Kiến trúc giúp tách biệt phần đọc với phần ghi
+
+- Đọc: thì giúp cho đọc nhanh hơn -> nó ưu tiên tốc độ
+- Ghi: thì nó ưu tiên tính toán viện hơn
+- Và nó tách biệt: nên 2 thằng sẽ phải liên kết với nhau (***)
+
+
+Trước khi SQRS ra đời: | W(Write) & R(Read)
+
+User -> FE/API ->(W) Engine ->(W) Database (1)
+               <-(R)        <- (R)
+
++------------+       DTO       +------------------+
+|            | <-------------  |                  |
+|     UI     |                 |  Business Logic  |
+|            | ------------->  |                  |
++------------+       DTO       +------------------+
+                                         |
+                                         v
+                                +------------------+
+                                |                  |
+                                |      Model       |
+                                |                  |
+                                +------------------+
+                                         |
+                                        ORM
+                                         |
+                                         v
+                                +------------------+
+                                |     Database     |
+                                |       (DB)       |
+                                +------------------+
+
+-> Đây là kiến trúc 3 lớp kinh điển(monolith), và trong quá trình phát triển thì kiến trúc lại mang lại nhiều nhược điểm:
+
++Khi việc đọc ghi liên tục diễn ra liên tục cùng một lúc, nhiều lên thì dẫn đến bị nghẽn db(bottel neck) do các luồng request tranh chấp tài nguyên của cùng database -> làm giảm hiệu năng của hệ thống
+
++Khó mở rộng độc lập: khi nhu cầu đọc tăng đột biến, phải mở rộng cả phần xử lí đọc và ghi dù phần ghi là chưa cần thiết -> lãng phí tài nguyên
+
+-> Lúc này sinh ra Gateaway
+
+                     Client
+                       |
+                       v
+                  API Gateway
+                 /     |     \
+                v      v      v
+              API 1   API 2   API 3
+         (SQRS) |      |       |
+                v      v       v
+               DB 1-> DB 2 -> DB 3
+
+Và mỗi cụm (API 1 - DB 1) là mỗi cụm microservice, mục đích để phân tán ra không để luồng request tâp trung vào 1 thằng | 
+
+
+Thì lúc này người ta tách cái ở trên ra (1) 2 phần R và W riêng biệt với nhau và không còn bị dính chùm nữa
+
+Một cái W thì tập trung ghi và db trên
+Một cái R có thể là một ngôn ngữ, hoặc 1 cách đọc kiểu dữ liệu hoàn toàn khác luôn (mô hình này gọi là Partial SQRS - một phần và nó cũng là tiền thân của microservices)
+
+                          CQRS Architecture
+
+                    +---------------------+
+                    |                     |
+                    |         API         |
+                    |                     |
+                    +---------------------+
+                       |              ^
+                       |              |
+                 DTO   |              |  DTO
+                       v              |
+              +--------------+  +--------------+
+              |   Commands   |  |   Queries    |
+              +--------------+  +--------------+
+                     |                 |
+                     v                 v
+           +------------------+ +------------------+
+           |   WRITE Domain   | |    READ Model    |
+           |       Model      | |                  |
+           +------------------+ +------------------+
+                     |                 |
+                     |       ORM       |
+                     v                 v
+                   +---------------------+
+                   |                     |
+                   |         DB          |
+                   |                     |
+                   +---------------------+
+
+
+Lúc này ta chỉ cần hiểu đơn giản, CQRS architecture giúp chúng ta tách biệt phần đọc và phần ghi ra riêng để tối ưu cho cho từng cái
+
+Vậy khi dùng CQRS chỉ để tách biệt thôi, vậy khi đã tách biệt rồi thì việc chúng giao tiếp với nhau để đảm bảo đồng bộ dữ liệu còn là một vấn đề khác nữa
+
+Vì vậy mà mình hay thấy rằng người ta hay dùng combo đó là: CQRS + MediatR (tách bạch + giao tiếp)
+
+Vậy MediatR Pattern: là một kiểu design pattern giúp giảm sự phụ thuộc giữa các thành phần trong ứng dụng bằng cách làm cho nó giao tiếp với nhau 
+
+
+                  CQRS + MediatR Architecture
+
++-----------+         +-----------+        +------------------+
+|           |  Query  |           |------->|  Query Handler   |
+|           |-------->|           |        +------------------+
+|  Web API  |         |  MediatR  |                 |
+|           | Command |           |                 v
+|           |-------->|           |        +------------------+
++-----------+         +-----------+        | Command Handler  |
+                           |               +------------------+
+                           |                         |
+                           |                         |
+                           |        +----------------+
+                           |        |
+                           v        v
+                     +------------------+
+                     |     Database     |
+                     +------------------+
+
+
+
+
+
+### PHÂN BIỆT
+
+1. Với kiến trúc 3-tier thông thường
+
+Cả đọc và ghi đều đi qua cùng Business Logic và thường dùng chung Model, Database.
+
+Ví dụ:
+
+• Request A: Đặt hàng → ghi dữ liệu.
+• Request B: Xem danh sách đơn hàng → đọc dữ liệu.
+
+Hai request có thể diễn ra cùng lúc, nhưng phải chia sẻ tài nguyên xử lý chung. Khi lượng request lớn, chúng có thể cạnh tranh tài nguyên.
+
+
+2. Với CQRS
+
+CQRS chia thành hai luồng xử lý riêng:
+
+┌─────────────────────────────────────────────│                                                              │
+│                    Command — Ghi dữ liệu                     │
+│                                                              │
+│         Đặt hàng → Xử lý nghiệp vụ → Write Model → DB        │
+│                                                              │
+├─────────────────────────────────────────────┤
+│                                                              │
+│                     Query — Đọc dữ liệu                      │
+│                                                              │
+│                 Xem đơn hàng → Read Model → DB               │
+│                                                              │
+└─────────────────────────────────────────────┘
+
+Hai luồng có thể được tối ưu và mở rộng độc lập.
+
+Ví dụ, website có 1.000 request xem sản phẩm nhưng chỉ 20 request cập nhật sản phẩm. CQRS cho phép mở rộng phần đọc nhiều hơn mà không cần mở rộng tương ứng phần ghi.
+
+
+Triển khai với clean architecture
+
+                                    +-----------------------+
+                                    |      Application      |
+                                    |                       |
+                                    |  +-----------------+  |
+                                    |  |     Command     |  |
+                                    |  +-----------------+  |
++----------+    +----------+        |           |           |
+|          |    |          |        |           v           |
+|  Client  |--->| Web API  |--->+---------+                  |
+|          |    |          |    | MediatR |----> Command     |
++----------+    +----------+    |         |----> Query       |
+                                +---------+                  |
+                                    |           v           |
+                                    |  +-----------------+  |
+                                    |  |      Query      |  |
+                                    |  +-----------------+  |
+                                    |                       |
+                                    +-----------------------+
+                                               |
+                                               v
+                                    +-----------------------+
+                                    |    Infrastructure     |
+                                    |         Layer         |
+                                    +-----------------------+
+                                               |
+                                               v
+                                          +---------+
+                                          |   DB    |
+                                          +---------+
+
+Triển khai theo hướng microservices
+
+                         CQRS ARCHITECTURE
+                (Command / Query Separation)
+
+
+                                    +----------------------+
+                                    |       COMMAND        |
+                                    |                      |
+                                    | +--------+  +------+ |
+                                    | | MediatR|->| App  |--------> DB WRITE
+                                    | +--------+  +------+ |
+                                    |                |     |
+                                    |                v     |
+                                    | +--------+  +------+ |
+                                    | | Domain |<-| Infra| |
+                                    | +--------+  +------+ |
+                                    +----------------------+
+                                              ^
+                                              |
++----------+     +----------------+           |
+|          |     |                |-----------+
+|  Client  |---->|    Gateway     |
+|          |     | Load Balancing |-----------+
++----------+     +----------------+           |
+                                              |
+                                              v
+                                    +----------------------+
+                                    |        QUERY         |
+                                    |                      |
+                                    | +--------+  +------+ |
+                                    | | MediatR|->| App  |--------> DB READ
+                                    | +--------+  +------+ |
+                                    |                |     |
+                                    |                v     |
+                                    | +--------+  +------+ |
+                                    | | Domain |<-| Infra| |
+                                    | +--------+  +------+ |
+                                    +----------------------+
+
