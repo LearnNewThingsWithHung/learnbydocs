@@ -63,4 +63,36 @@ docker save -o tetpee-api.tar tetpee-api:1.0
 docker load -i tetpee-api.tar
 - tạo container từ image đó 
 
+---------------
+compose.yml: đọc giúp tự cấu hình
+
+dockerfile + src code + compose.	
+- câu lệnh push lên docker hub
+docker tag tetpee-api:1.0 tanhung206/tetpee-api:1.0
+=> gắn tag để dockerhub biết: push vào tài khoảng này, repo nào và phiên bản nào
+tanhung206/tetpee-api:1.0
+│          │          └─ Tag/phiên bản
+│          └──────────── Tên repository
+└─────────────────────── Tài khoản Docker Hub
+docker tag tetpee-api:1.0 tanhung206/tetpee:api-1.0
+docker tag postgres:16-alpine tanhung206/tetpee:postgres-16-alpine
+docker push tanhung206/tetpee:api-1.0
+docker push tanhung206/tetpee:postgres-16-alpine
+
+- cêu lệnh list tất cả các image của một repo trên remote
+docker images tanhung206/tetpee
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

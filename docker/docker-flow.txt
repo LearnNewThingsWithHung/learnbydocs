@@ -1,0 +1,42 @@
+Docker-flow
+Flow chạy ứng dụng bằng image có sẵn:
+
+Bạn viết source code
+→ Dockerfile build source thành API image
+→ Push API image lên Docker Hub
+→ GitHub lưu source code + docker-compose.yml + .env.sample
+→ Bạn của bạn clone source từ GitHub
+→ Tạo file .env từ .env.sample
+→ Chạy docker compose up -d
+→ Compose tự pull API + PostgreSQL image từ Docker Hub
+→ Compose tạo network + volume + container
+→ API kết nối PostgreSQL
+→ Mở http://localhost:8080/swagger
+
+Bạn không cần gửi riêng đường link image nếu trong Compose đã khai báo:
+
+image: tanhung206/tetpee:api-1.0
+
+Nếu repository Docker Hub:
+
+- Public: Compose tự tải image.
+- Private: bạn của bạn phải chạy docker login và được cấp quyền.
+
+Cần phân biệt thêm flow khi sửa code:
+
+Clone source
+→ Sửa code
+→ docker compose up -d --build
+→ Dockerfile build source mới thành image local
+→ Container mới chạy code vừa sửa
+
+Còn nếu chỉ chạy:
+docker compose up -d
+
+với image đã push thì container chạy code cũ đã được đóng gói trong image, không tự chạy code vừa sửa.
+
+
+--------------------------------------
+
+
+

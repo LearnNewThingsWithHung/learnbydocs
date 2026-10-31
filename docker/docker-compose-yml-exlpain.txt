@@ -1,0 +1,308 @@
+docker-compose.yml
+
+1. services — khai báo API và PostgreSQL.
+2. image / build — dùng image Docker Hub hay build từ source.
+3. ports — mở API/Swagger ra máy host.
+4. environment — truyền connection string và môi trường Development.
+5. networks — giúp API tìm thấy PostgreSQL.
+6. volumes — giữ dữ liệu database.
+7. depends_on và healthcheck — chỉ chạy API khi database đã sẵn sàng.
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+  api:
+    image: tanhung206/tetpee:api-1.0
+
+- service: danh sách các thành phần của hệ thống
+- postgres: tên service database
+- api: tên service API
+- image: image dùng để tạo container
+ 
+ Tên service postgres còn đóng vai trò như hostname trong Docker network. Sau này connection string của API sẽ dùng:
+  Host=postgres chứ không dùng local host
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  api:
+    image: tanhung206/tetpee:api-1.0
+
+- environment: truyền biến môi trường vào container
+- postgres_db: tên db cần tạo
+- postgres_user: tài khoản database
+- postgres_db: mật khẩu
+- ${POSTGRES_DB}: lấy giá trị từ file .env, tránh ghi trực tiếp mật khẩu trong Compose
+
+--------
+tiếp theo đến phần ports để máy host có thể truy cập PostgreSQL
+
+Máy host là máy thật đang chạy Docket Desktop - (windows của mình).
+Máy Windows của bạn (host)
+└── Docker
+    ├── API container
+    └── PostgreSQL container
+
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+  api:
+    image: tanhung206/tetpee:api-1.0
+
+- Cổng máy host: cổng container
+          5433 : 5432
+- Khi đó:
+   "Hãy kết nối cổng 5432 bên trong container ra cổng ngoài máy tính của tôi. Nếu ở file .env tôi có cài đặt số cổng riêng thì dùng số đó, còn không thì cứ mặc định dùng cổng 5433 trên máy của tôi để tôi từ bên ngoài có thể truy cập vào cơ sở dữ liệu." -> mapping cổng
+
+
+--------
+tiếp theo là volume để dữ liệu database không mất khi container bị xóa
+
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+  api:
+    image: tanhung206/tetpee:api-1.0
+
+- câu lệnh này: tetpee-postgres-data:/var/lib/postgresql/data chia làm 2 phần
+  + tetpee-postgres-data: tên volume do Docker quản lý
+  + /var/lib/postgresql/data: nơi lưu dữ liệu bên trong cái container đó
+ => docker chuyển dữ liệu từ bên trong sang volume tetpee-postgres-data(volume nằm ngoài vòng đời của container)
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+
+
+- healthcheck: để docker biết postgreSQL đã thật sự sẵn sàng chưa(nhận kết nối chưa)
+   + test: chạy lệnh pg_isready để kiểm tra PostgreSQL
+   + interval: 5s: cứ 5 giây kiểm tra một lần
+   + timeout: 5s: mỗi lần chờ tối đa 5s
+   + retries: 10: thất bại 10 lần thì đánh dấu unhealty
+   + start_period: 10s: cho PostgreSQL 10 giấy khởi động trước khi tính lỗi
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+    ports:
+      - "${API_PORT:-8080}:8080"
+- port bên phải: là port của container API
+- port bên traisL là port của máy mình
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+
+- ASPNETCORE_ENVIRONMENT: Development: chạy API ở môi trường Development nên đoạn code bật Swagger của bạn được thực thi
+- ASPNETCORE_HTTP_PORTS: 8080: yêu cầu API lắng nghe cổng 8080 bên tron container
+- ConnectionStrings__DefaultConnection: ghi đè connection string trong appsettings.json.
+
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy  
+
+- ý nghĩa:
+  + Khởi động PostgreSQL
+   -> healthcheck kiểm tra
+   -> PostgreSQL chuyển thành healthy
+   -> Docker Compose mới khởi động API
+
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    networks:
+      - tetpee-network
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+    networks:
+      - tetpee-network
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy  
+networks:
+  tetpee-network:
+    driver: bridge
+
+- vì container là mỗi thùng hàng độc lập, mà muốn container api và container postgres giao tiếp được với nhau thi chúng ta cần đưa nó về chung 1 network
+
+- driver: bridge là việc tạo một mạng riêng trên máy cho các container giao tiếp với nhau được
+
+
+--------
+services:
+  postgres:
+    image: tanhung206/tetpee:postgres-16-alpine
+    restart: unless-stopped
+    networks:
+      - tetpee-network
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - tetpee-postgres-data:/var/lib/postgresql/data
+      healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  api:
+    image: tanhung206/tetpee:api-1.0
+    restart: unless-stopped
+    networks:
+      - tetpee-network
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy  
+networks:
+  tetpee-network:
+    driver: bridge
+
+- unless-stopped nghĩa là:
+  + Container bị lỗi hoặc Docker desktop khởi động lại -> Docker tự chạy lại container 
+   + Bạn chủ động stop container -> Docker tôn trọng và không tự bật lại
+
+- Một số lựa chọn khác:
+  + no: không tự restart, đây là mặc định
+  + on-failure: chỉ restart khi chương trình thoát do lỗi
+  + always: luôn luôn
+  + unless-stopped: thường tiện nhất cho môi trường local hoặc server đơn giản
+
+
+
+
+
+	
